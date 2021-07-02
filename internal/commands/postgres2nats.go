@@ -1,8 +1,11 @@
 package commands
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/go-gulfstream/connector/internal/config"
+	"github.com/spf13/cobra"
+)
 
-func postgres2natsCommand() *cobra.Command {
+func postgres2natsCommand(cfg *config.Config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: "postgres2nats",
 	}

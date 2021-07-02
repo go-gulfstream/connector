@@ -8,9 +8,13 @@ import (
 )
 
 func main() {
-	app := commands.New()
+	app, err := commands.New()
+	if err != nil {
+		fmt.Printf("[ERROR] main.New %s\n", err)
+		os.Exit(1)
+	}
 	if err := app.Execute(); err != nil {
-		fmt.Printf("[ERROR] app.Execute %s\n", err)
+		fmt.Printf("[ERROR] main.Execute %s\n", err)
 		os.Exit(1)
 	}
 }
