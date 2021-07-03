@@ -25,12 +25,13 @@ import (
 )
 
 type postgres2kafkaFlags struct {
+	configFile string
 	renewSlot  bool
 	dropSlot   bool
 	showConfig bool
 }
 
-func postgres2kafkaCommand(cfg *config.Config) *cobra.Command {
+func postgres2kafkaCommand() *cobra.Command {
 	var flags postgres2kafkaFlags
 	cmd := &cobra.Command{
 		Use:   "postgres2kafka",
@@ -44,6 +45,13 @@ gs-connect p2k --renew-slot
 		Aliases:    []string{"p2k", "pg2kfk"},
 		SuggestFor: []string{"p2", "post", "postgres", "pg"},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := parseConfig(flags.configFile)
+			if err != nil {
+				return err
+			}
+			if err := config.Validate(cfg.Kafka, cfg.Postgres); err != nil {
+				return err
+			}
 			ctx, cancel := context.WithCancel(context.Background())
 			sigs := make(chan os.Signal, 1)
 			signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -54,9 +62,10 @@ gs-connect p2k --renew-slot
 			return runPostgres2kafkaCommand(ctx, cfg, flags)
 		},
 	}
-	cmd.Flags().BoolVar(&flags.renewSlot, "renew-slot", false, "Renew slot")
-	cmd.Flags().BoolVar(&flags.dropSlot, "drop-slot", false, "Drop slot")
-	cmd.Flags().BoolVar(&flags.showConfig, "show-config", false, "Show current configuration")
+	cmd.Flags().StringVarP(&flags.configFile, "config", "c", "", "config file (default is $PWD/gc-connector.yaml)")
+	cmd.Flags().BoolVarP(&flags.renewSlot, "renew-slot", "r", false, "Renew slot")
+	cmd.Flags().BoolVarP(&flags.dropSlot, "drop-slot", "d", false, "Drop slot")
+	cmd.Flags().BoolVarP(&flags.showConfig, "show-config", "s", false, "Show current configuration")
 	return cmd
 }
 
@@ -64,7 +73,7 @@ func runPostgres2kafkaCommand(ctx context.Context, cfg *config.Config, flags pos
 	kafkaConfig := cfg.Kafka.NewConfig()
 
 	if flags.showConfig {
-		fmt.Printf("====================== postgres2kafka config ======================\n")
+		fmt.Printf("====================== postgres2kafka %s ======================\n", flags.configFile)
 		fmt.Printf("Postgres:\n")
 		fmt.Printf("  ConnectionURI: %s\n", cfg.Postgres.ConnectionURI)
 		fmt.Printf("  SlotName: %s\n", cfg.Postgres.GetSlotName())

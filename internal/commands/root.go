@@ -17,36 +17,10 @@ func New() (*cobra.Command, error) {
 		Short: "Exporting gulfstream-events from stream storage to eventbus",
 	}
 
-	var configFile string
-	root.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (default is $PWD/gc-connector.yaml)")
-	cfg, err := parseConfig(configFile)
-	if err != nil {
-		return nil, err
-	}
-
-	postgres2kafka := postgres2kafkaCommand(cfg)
-	postgres2nats := postgres2natsCommand(cfg)
-	redis2kafka := redis2kafkaCommand(cfg)
-	redis2nats := redis2natsCommand(cfg)
-
-	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
-		switch cmd.Name() {
-		case postgres2kafka.Name():
-			return config.Validate(cfg.Postgres, cfg.Kafka)
-		case postgres2nats.Name():
-			return config.Validate(cfg.Postgres, cfg.Nats)
-		case redis2kafka.Name():
-			return config.Validate(cfg.Redis, cfg.Kafka)
-		case redis2nats.Name():
-			return config.Validate(cfg.Redis, cfg.Nats)
-		}
-		return nil
-	}
-
-	root.AddCommand(postgres2kafka)
-	root.AddCommand(postgres2nats)
-	root.AddCommand(redis2kafka)
-	root.AddCommand(redis2nats)
+	root.AddCommand(postgres2kafkaCommand())
+	root.AddCommand(postgres2natsCommand())
+	root.AddCommand(redis2kafkaCommand())
+	root.AddCommand(redis2natsCommand())
 
 	return root, nil
 }
@@ -56,9 +30,9 @@ func parseConfig(configFile string) (*config.Config, error) {
 		viper.SetConfigFile(configFile)
 	} else {
 		// default path.
-		viper.AddConfigPath("./")
+		viper.AddConfigPath(".")
 		viper.SetConfigType("yml")
-		viper.SetConfigName("gc-connector")
+		viper.SetConfigName("gs-connector")
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
