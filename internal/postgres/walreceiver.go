@@ -1,7 +1,6 @@
 package postgres
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"time"
@@ -12,12 +11,26 @@ import (
 )
 
 const (
-	defaultTimeout = time.Second * 15
+	defaultTimeout = time.Second * 10
 	streamNameCol  = "stream_name"
 	streamIDCol    = "stream_id"
 	versionCol     = "version"
 	rawDataCol     = "raw_data"
 )
+
+type WalData struct {
+	StreamName string
+	StreamID   string
+	Version    int64
+	Data       []byte
+}
+
+func (d WalData) Validate() error {
+	if len(d.StreamName) == 0 && len(d.StreamID) == 0 || len(d.Data) == 0 {
+		return fmt.Errorf("invalid data schema gulfstream.outbox")
+	}
+	return nil
+}
 
 type WalReceiver struct {
 	ctx                  context.Context
@@ -33,14 +46,9 @@ type WalReceiver struct {
 	beginTxPos           pglogrepl.LSN
 	commitTxPos          pglogrepl.LSN
 	confirmTxPos         pglogrepl.LSN
-	streamName           string
-	streamID             string
-	version              int64
-	rawData              *bytes.Buffer
-	insert               bool
 }
 
-type HandleFunc func(streamName string, streamID string, version int64, rawData []byte) error
+type HandleFunc func(data WalData) error
 
 func NewWalReceiverWithContext(
 	ctx context.Context,
@@ -52,7 +60,6 @@ func NewWalReceiverWithContext(
 		timeout:   defaultTimeout,
 		conn:      conn,
 		slotName:  slotName,
-		rawData:   bytes.NewBuffer(nil),
 		relations: make(map[uint32]*pglogrepl.RelationMessage),
 	}
 }
@@ -130,6 +137,7 @@ func (r *WalReceiver) Listen() error {
 			}
 			return err
 		}
+
 		switch msg := msg.(type) {
 		case *pgproto3.ErrorResponse:
 			for _, fn := range r.errorFunc {
@@ -171,48 +179,37 @@ func (r *WalReceiver) Listen() error {
 func (r *WalReceiver) handleMessage(m pglogrepl.Message) (err error) {
 	switch message := m.(type) {
 	case *pglogrepl.BeginMessage:
-		r.insert = false
 		r.beginTxPos = message.FinalLSN
 	case *pglogrepl.CommitMessage:
-		if !r.insert {
-			return
-		}
 		r.commitTxPos = message.CommitLSN
 		if r.commitTxPos != r.beginTxPos {
 			return fmt.Errorf("postgres: WalReceiver.HandleMessage mismatch wal positions begin:%s, commit:%s",
 				r.beginTxPos, r.commitTxPos)
 		}
-
-		for _, fn := range r.messageFunc {
-			if err := fn(r.streamName, r.streamID, r.version, r.rawData.Bytes()); err != nil {
-				return err
-			}
-		}
-
-		r.streamName = ""
-		r.streamID = ""
-		r.version = 0
-		r.rawData.Reset()
-
 	case *pglogrepl.RelationMessage:
 		r.relations[message.RelationID] = message
 	case *pglogrepl.InsertMessage:
-		r.insert = true
 		rel, ok := r.relations[message.RelationID]
 		if !ok {
 			return fmt.Errorf("postgres: WalReceiver could not find relation for row relid=%d, relname=%s",
 				rel.RelationID, rel.RelationName)
 		}
+		var data WalData
 		for i, c := range message.Tuple.Columns {
 			switch rel.Columns[i].Name {
 			case streamIDCol:
-				r.streamID = string(c.Data)
+				data.StreamID = string(c.Data)
 			case streamNameCol:
-				r.streamName = string(c.Data)
+				data.StreamName = string(c.Data)
 			case versionCol:
-				r.version, err = c.Int64()
+				data.Version, err = c.Int64()
 			case rawDataCol:
-				r.rawData.Write(c.Data)
+				data.Data = c.Data
+			}
+		}
+		for _, fn := range r.messageFunc {
+			if err := fn(data); err != nil {
+				return err
 			}
 		}
 	}

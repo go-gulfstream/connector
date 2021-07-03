@@ -12,7 +12,7 @@ import (
 const pgOutputPlugin = "pgoutput"
 
 func DropSlot(ctx context.Context, conn *pgconn.PgConn, slotName string) error {
-	resPub := conn.Exec(context.Background(), "DROP PUBLICATION IF EXISTS "+slotName+";")
+	resPub := conn.Exec(ctx, "DROP PUBLICATION IF EXISTS "+slotName+";")
 	_, err := resPub.ReadAll()
 	if err != nil {
 		return err
@@ -30,7 +30,7 @@ func DropSlot(ctx context.Context, conn *pgconn.PgConn, slotName string) error {
 }
 
 func CreateSlot(ctx context.Context, conn *pgconn.PgConn, slotName string) error {
-	resPub := conn.Exec(context.Background(), "CREATE PUBLICATION "+slotName+" FOR TABLE gulfstream.outbox WITH (publish='insert');")
+	resPub := conn.Exec(ctx, "CREATE PUBLICATION "+slotName+" FOR TABLE gulfstream.outbox WITH (publish='insert');")
 	_, err := resPub.ReadAll()
 	if err != nil {
 		pgErr, ok := err.(*pgconn.PgError)

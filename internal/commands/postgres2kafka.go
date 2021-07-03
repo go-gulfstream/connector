@@ -31,6 +31,13 @@ type postgres2kafkaFlags struct {
 	showConfig bool
 }
 
+func (f postgres2kafkaFlags) getConfigFile() string {
+	if len(f.configFile) == 0 {
+		return "./gs-connector.yml"
+	}
+	return f.configFile
+}
+
 func postgres2kafkaCommand() *cobra.Command {
 	var flags postgres2kafkaFlags
 	cmd := &cobra.Command{
@@ -73,7 +80,7 @@ func runPostgres2kafkaCommand(ctx context.Context, cfg *config.Config, flags pos
 	kafkaConfig := cfg.Kafka.NewConfig()
 
 	if flags.showConfig {
-		fmt.Printf("====================== postgres2kafka %s ======================\n", flags.configFile)
+		fmt.Printf("====================== postgres2kafka %s ======================\n", flags.getConfigFile())
 		fmt.Printf("Postgres:\n")
 		fmt.Printf("  ConnectionURI: %s\n", cfg.Postgres.ConnectionURI)
 		fmt.Printf("  SlotName: %s\n", cfg.Postgres.GetSlotName())
@@ -157,15 +164,15 @@ func runPostgres2kafkaCommand(ctx context.Context, cfg *config.Config, flags pos
 		logger.Info("closed")
 	})
 	walListener.OnMessage(
-		func(streamName string, streamID string, _ int64, rawData []byte) error {
-			if len(streamName) == 0 && len(streamID) == 0 || len(rawData) == 0 {
-				logger.Warn("INVALID DATA SCHEME gulfstream.outbox")
+		func(data postgres.WalData) error {
+			if err := data.Validate(); err != nil {
+				logger.Warn(err)
 				return nil
 			}
 			_, _, err := kafka.SendMessage(&sarama.ProducerMessage{
-				Topic: streamName,
-				Key:   sarama.StringEncoder(streamName + streamID),
-				Value: sarama.ByteEncoder(rawData),
+				Topic: data.StreamName,
+				Key:   sarama.StringEncoder(data.StreamName + data.StreamID),
+				Value: sarama.ByteEncoder(data.Data),
 			})
 			if err == nil {
 				atomic.AddUint64(&published, 1)
