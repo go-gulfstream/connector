@@ -70,6 +70,7 @@ func runPostgres2kafkaCommand(ctx context.Context, cfg *config.Config, flags pos
 		fmt.Printf("  SlotName: %s\n", cfg.Postgres.GetSlotName())
 		fmt.Printf("Kafka:\n")
 		fmt.Printf("  Brokers: %s\n", cfg.Kafka.Brokers)
+		fmt.Printf("  ClientID: %s\n", cfg.Kafka.ClientID)
 		fmt.Printf("  RetryMax: %d\n", kafkaConfig.Producer.Retry.Max)
 		fmt.Printf("  RetryBackoff: %s\n", kafkaConfig.Producer.Retry.Backoff)
 		fmt.Printf("  RequiredAcks: %s\n", cfg.Kafka.GetRequiredAcks())

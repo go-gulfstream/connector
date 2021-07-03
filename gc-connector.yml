@@ -1,8 +1,14 @@
 kafka:
   brokers:
     - 127.0.0.1:9092
+  clientID: gulfstream-connector
+  retryMax: 10
+  retryBackoff: 1s
+  requiredAcks: local #waitForAll
+  maxMessageBytes: 15000000
+  timeout: 10s
 postgres:
-  slotName: gul
+  slotName: gulfstream
   connectionURI: postgres://postgres:123456@127.0.0.1:5432/postgres?replication=database
 logger:
   formatter: text # json

@@ -13,7 +13,8 @@ import (
 
 func New() (*cobra.Command, error) {
 	root := &cobra.Command{
-		Use: "gc-connector",
+		Use:   "gc-connector",
+		Short: "Exporting gulfstream-events from stream storage to eventbus",
 	}
 
 	var configFile string
