@@ -1,4 +1,8 @@
 kafka:
   brokers:
-    - kafka:9092
-    - kafka:9093
+    - 127.0.0.1:9092
+postgres:
+  slotName: gul
+  connectionURI: postgres://postgres:123456@127.0.0.1:5432/postgres?replication=database
+logger:
+  formatter: text # json

@@ -27,7 +27,9 @@ type WalReceiver struct {
 	primaryKeepaliveFunc []func(pglogrepl.PrimaryKeepaliveMessage)
 	standbyStatusFunc    []func(pglogrepl.LSN)
 	messageFunc          []HandleFunc
+	errorFunc            []func(*pgproto3.ErrorResponse)
 	relations            map[uint32]*pglogrepl.RelationMessage
+	exitFunc             []func()
 	beginTxPos           pglogrepl.LSN
 	commitTxPos          pglogrepl.LSN
 	confirmTxPos         pglogrepl.LSN
@@ -35,6 +37,7 @@ type WalReceiver struct {
 	streamID             string
 	version              int64
 	rawData              *bytes.Buffer
+	insert               bool
 }
 
 type HandleFunc func(streamName string, streamID string, version int64, rawData []byte) error
@@ -52,6 +55,14 @@ func NewWalReceiverWithContext(
 		rawData:   bytes.NewBuffer(nil),
 		relations: make(map[uint32]*pglogrepl.RelationMessage),
 	}
+}
+
+func (r *WalReceiver) OnExit(fn func()) {
+	r.exitFunc = append(r.exitFunc, fn)
+}
+
+func (r *WalReceiver) OnError(fn func(*pgproto3.ErrorResponse)) {
+	r.errorFunc = append(r.errorFunc, fn)
 }
 
 func (r *WalReceiver) OnPrimaryKeepalive(fn func(pglogrepl.PrimaryKeepaliveMessage)) {
@@ -87,6 +98,12 @@ func (r *WalReceiver) Listen() error {
 	r.confirmTxPos = lastLSN
 	nextDeadline := time.Now().Add(r.timeout)
 
+	defer func() {
+		for _, fn := range r.exitFunc {
+			fn()
+		}
+	}()
+
 	for r.ctx.Err() == nil {
 		if time.Now().After(nextDeadline) {
 			if err := pglogrepl.SendStandbyStatusUpdate(r.ctx, r.conn,
@@ -106,12 +123,18 @@ func (r *WalReceiver) Listen() error {
 		cancel()
 		if err != nil {
 			if pgconn.Timeout(err) {
+				if r.ctx.Err() != nil {
+					return nil
+				}
 				continue
 			}
 			return err
 		}
-
 		switch msg := msg.(type) {
+		case *pgproto3.ErrorResponse:
+			for _, fn := range r.errorFunc {
+				fn(msg)
+			}
 		case *pgproto3.CopyData:
 			switch msg.Data[0] {
 			case pglogrepl.PrimaryKeepaliveMessageByteID:
@@ -148,8 +171,12 @@ func (r *WalReceiver) Listen() error {
 func (r *WalReceiver) handleMessage(m pglogrepl.Message) (err error) {
 	switch message := m.(type) {
 	case *pglogrepl.BeginMessage:
+		r.insert = false
 		r.beginTxPos = message.FinalLSN
 	case *pglogrepl.CommitMessage:
+		if !r.insert {
+			return
+		}
 		r.commitTxPos = message.CommitLSN
 		if r.commitTxPos != r.beginTxPos {
 			return fmt.Errorf("postgres: WalReceiver.HandleMessage mismatch wal positions begin:%s, commit:%s",
@@ -170,6 +197,7 @@ func (r *WalReceiver) handleMessage(m pglogrepl.Message) (err error) {
 	case *pglogrepl.RelationMessage:
 		r.relations[message.RelationID] = message
 	case *pglogrepl.InsertMessage:
+		r.insert = true
 		rel, ok := r.relations[message.RelationID]
 		if !ok {
 			return fmt.Errorf("postgres: WalReceiver could not find relation for row relid=%d, relname=%s",
@@ -198,13 +226,10 @@ func (r *WalReceiver) lastLSN() (lsn pglogrepl.LSN, err error) {
 		return 0, err
 	}
 	if len(res) != 1 {
-		return 0, fmt.Errorf("postgres: WalReceiver.lastLSN expected 1 resultSet, got %d", len(res))
+		return 0, fmt.Errorf("postgres: WalReceiver.LastLSN expected 1 resultSet, got %d", len(res))
 	}
 	if len(res[0].Rows) != 1 {
-		return 0, fmt.Errorf("postgres: WalReceiver.lastLSN expected 1 result row, got %d", len(res[0].Rows))
-	}
-	if len(res[0].Rows) != 1 {
-		return 0, fmt.Errorf("postgres: WalReceiver.lastLSN expected 2 result columns, got %d", len(res[0].Rows))
+		return 0, fmt.Errorf("postgres: WalReceiver.LastLSN expected 1 result row, got %d", len(res[0].Rows))
 	}
 	return pglogrepl.ParseLSN(string(res[0].Rows[0][0]))
 }
