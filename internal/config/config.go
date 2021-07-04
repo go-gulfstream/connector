@@ -9,7 +9,6 @@ type Config struct {
 	Logger   logger   `mapstructure:"logger"`
 	Nats     nats     `mapstructure:"nats"`
 	Postgres postgres `mapstructure:"postgres"`
-	Redis    redis    `mapstructure:"redis"`
 }
 
 func Validate(validators ...Validator) (err error) {

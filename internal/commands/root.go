@@ -18,9 +18,6 @@ func New() (*cobra.Command, error) {
 	}
 
 	root.AddCommand(postgres2kafkaCommand())
-	root.AddCommand(postgres2natsCommand())
-	root.AddCommand(redis2kafkaCommand())
-	root.AddCommand(redis2natsCommand())
 
 	return root, nil
 }

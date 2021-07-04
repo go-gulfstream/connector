@@ -5,6 +5,7 @@ import (
 )
 
 func postgres2natsCommand() *cobra.Command {
+	// TODO:
 	cmd := &cobra.Command{
 		Use: "postgres2nats",
 	}
