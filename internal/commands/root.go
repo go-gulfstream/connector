@@ -11,6 +11,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var envMap = map[string]string{
+	"postgres.connectionURI": "GS_POSTGRES_CONNECTIONURI",
+	"postgres.slotName":      "GS_POSTGRES_SLOTNAME",
+	"kafka.brokers":          "GS_KAFKA_BROKERS",
+	"kafka.clientID":         "GS_KAFKA_CLIENTID",
+	"kafka.retryMax":         "GS_KAFKA_RETRYMAX",
+	"kafka.retryBackoff":     "GS_KAFKA_RETRYBACKOFF",
+	"kafka.requiredAcks":     "GS_KAFKA_REQUIREDACKS",
+	"kafka.maxMessageBytes":  "GS_KAFKA_MAXMESSAGEBYTES",
+	"kafka.timeout":          "GS_KAFKA_TIMEOUT",
+}
+
 func New() (*cobra.Command, error) {
 	root := &cobra.Command{
 		Use:   "gc-connector",
@@ -38,12 +50,19 @@ func parseConfig(configFile string) (*config.Config, error) {
 		}
 	}
 
-	// overwrite config from environment variables if exists.
-	for _, k := range viper.AllKeys() {
-		envKey := "GS_" + strings.Replace(k, ".", "_", -1)
-		envKey = strings.ToUpper(envKey)
-		if envVal := os.Getenv(envKey); len(envVal) > 0 {
-			viper.Set(k, envVal)
+	if len(viper.AllKeys()) == 0 {
+		// make config from environment variables if exists.
+		for k, v := range envMap {
+			viper.Set(k, os.Getenv(v))
+		}
+	} else {
+		// overwrite config from environment variables if exists.
+		for _, k := range viper.AllKeys() {
+			envKey := "GS_" + strings.Replace(k, ".", "_", -1)
+			envKey = strings.ToUpper(envKey)
+			if envVal := os.Getenv(envKey); len(envVal) > 0 {
+				viper.Set(k, envVal)
+			}
 		}
 	}
 
@@ -55,7 +74,10 @@ func parseConfig(configFile string) (*config.Config, error) {
 }
 
 func isEnabledEnvConfig() bool {
-	return len(os.Getenv("GS_POSTGRES_CONNECTIONURI")) > 0 ||
-		len(os.Getenv("GS_POSTGRES_SLOTNAME")) > 0 ||
-		len(os.Getenv("GS_KAFKA_BROKERS")) > 0
+	for _, env := range envMap {
+		if len(os.Getenv(env)) > 0 {
+			return true
+		}
+	}
+	return false
 }
