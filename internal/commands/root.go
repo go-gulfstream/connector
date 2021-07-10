@@ -33,7 +33,9 @@ func parseConfig(configFile string) (*config.Config, error) {
 	}
 
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, err
+		if !isEnabledEnvConfig() {
+			return nil, err
+		}
 	}
 
 	// overwrite config from environment variables if exists.
@@ -50,4 +52,10 @@ func parseConfig(configFile string) (*config.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func isEnabledEnvConfig() bool {
+	return len(os.Getenv("GS_POSTGRES_CONNECTIONURI")) > 0 ||
+		len(os.Getenv("GS_POSTGRES_SLOTNAME")) > 0 ||
+		len(os.Getenv("GS_KAFKA_BROKERS")) > 0
 }
