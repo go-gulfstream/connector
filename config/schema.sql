@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS gulfstream.outbox
 (
     stream_id        uuid         NOT NULL,
     stream_name      VARCHAR(128) NOT NULL,
+    event_name       VARCHAR(256) NOT NULL,
     version integer,
     raw_data    bytea,
     PRIMARY KEY (stream_name, stream_id, version)

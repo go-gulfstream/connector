@@ -169,10 +169,21 @@ func runPostgres2kafkaCommand(ctx context.Context, cfg *config.Config, flags pos
 				logger.Warn(err)
 				return nil
 			}
+			headers := []sarama.RecordHeader{
+				{
+					Key:   []byte("_stream"),
+					Value: []byte(data.StreamName),
+				},
+				{
+					Key:   []byte("_event"),
+					Value: []byte(data.EventName),
+				},
+			}
 			_, _, err := kafka.SendMessage(&sarama.ProducerMessage{
-				Topic: data.StreamName,
-				Key:   sarama.StringEncoder(data.StreamID),
-				Value: sarama.ByteEncoder(data.Data),
+				Topic:   data.StreamName,
+				Key:     sarama.StringEncoder(data.StreamID),
+				Value:   sarama.ByteEncoder(data.Data),
+				Headers: headers,
 			})
 			if err == nil {
 				atomic.AddUint64(&published, 1)

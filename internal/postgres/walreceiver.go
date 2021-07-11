@@ -14,6 +14,7 @@ const (
 	defaultTimeout = time.Second * 10
 	streamNameCol  = "stream_name"
 	streamIDCol    = "stream_id"
+	eventNameCol   = "event_name"
 	versionCol     = "version"
 	rawDataCol     = "raw_data"
 )
@@ -21,6 +22,7 @@ const (
 type WalData struct {
 	StreamName string
 	StreamID   string
+	EventName  string
 	Version    int64
 	Data       []byte
 }
@@ -197,6 +199,8 @@ func (r *WalReceiver) handleMessage(m pglogrepl.Message) (err error) {
 		var data WalData
 		for i, c := range message.Tuple.Columns {
 			switch rel.Columns[i].Name {
+			case eventNameCol:
+				data.EventName = string(c.Data)
 			case streamIDCol:
 				data.StreamID = string(c.Data)
 			case streamNameCol:
