@@ -171,7 +171,7 @@ func runPostgres2kafkaCommand(ctx context.Context, cfg *config.Config, flags pos
 			}
 			_, _, err := kafka.SendMessage(&sarama.ProducerMessage{
 				Topic: data.StreamName,
-				Key:   sarama.StringEncoder(data.StreamName + data.StreamID),
+				Key:   sarama.StringEncoder(data.StreamID),
 				Value: sarama.ByteEncoder(data.Data),
 			})
 			if err == nil {
